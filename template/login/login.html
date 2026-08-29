@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina SafeGuard - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#faf9fc",
+                        "tertiary-container": "#3d1f00",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#f2bc8d",
+                        "tertiary-fixed": "#ffdcc0",
+                        "on-tertiary-fixed-variant": "#633f1a",
+                        "secondary": "#356381",
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#b0ddff",
+                        "on-tertiary-container": "#b38459",
+                        "on-surface": "#1b1b1e",
+                        "outline-variant": "#c4c6cf",
+                        "on-surface-variant": "#44474e",
+                        "on-secondary-container": "#34627f",
+                        "on-primary-fixed-variant": "#324769",
+                        "on-tertiary-fixed": "#2d1600",
+                        "surface-container-low": "#f5f3f6",
+                        "inverse-on-surface": "#f2f0f3",
+                        "surface-container": "#efedf0",
+                        "surface-tint": "#4a5f82",
+                        "on-secondary-fixed-variant": "#194b68",
+                        "surface-container-highest": "#e3e2e5",
+                        "primary-container": "#0f2747",
+                        "surface-container-high": "#e9e7eb",
+                        "on-primary-container": "#798fb4",
+                        "inverse-primary": "#b2c7f0",
+                        "primary": "#00122b",
+                        "surface-variant": "#e3e2e5",
+                        "primary-fixed": "#d5e3ff",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#faf9fc",
+                        "surface-dim": "#dbd9dd",
+                        "surface": "#faf9fc",
+                        "on-secondary-fixed": "#001e2f",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed": "#011b3b",
+                        "tertiary": "#1f0d00",
+                        "primary-fixed-dim": "#b2c7f0",
+                        "outline": "#74777f",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#1b1b1e",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#c8e6ff",
+                        "inverse-surface": "#303033",
+                        "secondary-fixed-dim": "#9fccee",
+                        "on-primary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "unit": "8px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "40px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Manrope"],
+                        "body-lg": ["Manrope"],
+                        "label-xs": ["JetBrains Mono"],
+                        "title-md": ["Manrope"],
+                        "body-md": ["Manrope"],
+                        "label-sm": ["JetBrains Mono"],
+                        "headline-lg": ["Manrope"],
+                        "headline-xl": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-xs": ["10px", { "lineHeight": "14px", "letterSpacing": "0.1em", "fontWeight": "500" }],
+                        "title-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .bg-light-weave {
+            background-color: #faf8f2;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.25), transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.15), transparent 50%),
+                linear-gradient(rgba(14, 165, 233, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(14, 165, 233, 0.08) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 20px 20px, 20px 20px;
+            background-position: 0 0, 0 0, -1px -1px, -1px -1px;
+        }
+        
+        .glass-card {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        .industrial-input {
+            background-color: #f5f3f6;
+            border: none;
+            border-bottom: 2px solid #c4c6cf;
+            transition: all 0.3s ease;
+        }
+        .industrial-input:focus {
+            border-bottom: 2px solid #356381;
+            outline: none;
+            box-shadow: 0 4px 6px -1px rgba(53, 99, 129, 0.1);
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body class="h-full bg-light-weave flex flex-col font-body-md text-on-surface antialiased overflow-hidden">
+<!-- Suppressed Top Nav as this is a Transactional/Linear Login Screen -->
+<main class="flex-grow flex items-center justify-center p-margin-mobile md:p-margin-desktop w-full max-w-container-max mx-auto relative z-10">
+<div class="glass-card w-full max-w-md rounded-xl p-8 md:p-10 flex flex-col items-center relative animate-fade-in-up">
+<!-- Connection Status Hint -->
+<div class="absolute top-6 right-6 flex items-center space-x-2">
+<div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="System Online"></div>
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest">Active</span>
+</div>
+<!-- Brand Header -->
+<div class="flex flex-col items-center mb-8 w-full text-center">
+<div class="w-16 h-16 mb-4 rounded-lg flex items-center justify-center bg-primary-container p-2 shadow-sm border border-outline-variant/30">
+<img alt="Lumina SafeGuard Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkHQNrqcBeh4ckSwAfRLWmT2_t43p67FT6oPvNoVED_JpAx5FFIS7RQhAQjUkUw9XC_7JdM-88WiupJvi8d6pNjItCm7985KBv7AQ4i1vRNhlINHf-Cu1d7PeVuyC9Gb-rGWBzTxOLx0Ui4H1CaQ0sYaFXLflcpfoBgjq25Tpn6zk9XDJdvx4V9lyZSMtptO-owx3ZAMel2G4ZoLmtI7T5ngqSEwGmJP53GgxwCBUCcBgfsxeCqyjV"/>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-primary font-bold tracking-tight mb-2">LOGIN</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">ACDLL SafeGuard</p>
+</div>
+<!-- Login Form -->
+<form class="w-full space-y-6">
+<div class="space-y-2 group">
+<label class="block font-label-sm text-label-sm text-on-surface-variant group-focus-within:text-secondary transition-colors uppercase tracking-wider" for="email">Operator ID / Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-0 bottom-3 text-outline group-focus-within:text-secondary transition-colors" data-icon="badge">badge</span>
+<input class="industrial-input block w-full pl-8 pr-3 py-3 font-body-md text-on-surface placeholder:text-outline-variant rounded-t-DEFAULT" id="email" name="email" placeholder="admin@facility.local" required="" type="email"/>
+</div>
+</div>
+<div class="space-y-2 group">
+<label class="block font-label-sm text-label-sm text-on-surface-variant group-focus-within:text-secondary transition-colors uppercase tracking-wider" for="password">Access Protocol</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-0 bottom-3 text-outline group-focus-within:text-secondary transition-colors" data-icon="lock">lock</span>
+<input class="industrial-input block w-full pl-8 pr-10 py-3 font-body-md text-on-surface placeholder:text-outline-variant rounded-t-DEFAULT" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+<button class="absolute right-2 bottom-3 text-outline hover:text-on-surface transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center">
+<input class="h-4 w-4 rounded border-outline-variant text-primary-container focus:ring-primary-container focus:ring-offset-background bg-surface-container-low cursor-pointer" id="remember-me" name="remember-me" type="checkbox"/>
+<label class="ml-2 block font-label-sm text-label-sm text-on-surface-variant cursor-pointer" for="remember-me">Stay connected</label>
+</div>
+<div class="text-sm">
+<a class="font-label-sm text-label-sm text-secondary hover:text-primary transition-colors hover:underline underline-offset-4" href="#">Recover Access</a>
+</div>
+</div>
+<div class="pt-4">
+<button class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm font-title-md text-title-md font-semibold text-on-primary bg-primary-container hover:bg-primary hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-container transition-all active:scale-[0.98]" type="submit">
+<span class="material-symbols-outlined mr-2 text-[20px]" data-icon="lock">lock</span>
+System Access
+                    </button>
+</div>
+</form>
+<!-- Sensor Monitoring Hint -->
+<div class="mt-8 pt-6 border-t border-outline-variant/30 w-full flex items-center justify-center space-x-6">
+<div class="flex items-center">
+
+<label class="ml-2 block font-label-sm text-label-sm text-on-surface-variant">Dont have an access?</label>
+</div>
+<div class="text-sm">
+<a class="font-label-sm text-label-sm text-secondary hover:text-primary transition-colors hover:underline underline-offset-4" href="https://www.facebook.com/cinanyag">Contact Administrator</a>
+</div>
+</div>
+</div>
+</main>
+<!-- Suppressed Footer Nav as this is a Transactional Login Screen -->
+</body></html>

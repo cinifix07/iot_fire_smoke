@@ -1,0 +1,15 @@
+# Node
+node_modules/
+dist/
+
+# PlatformIO
+.pio/
+.platformio/
+.platformio-home/
+
+# IDE
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
