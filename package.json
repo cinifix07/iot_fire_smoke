@@ -1,0 +1,7 @@
+{
+  "name": "iot-fire-smoke",
+  "private": true,
+  "scripts": {
+    "deploy": "npm --prefix client run build && npx --yes vercel@latest --cwd client --prod"
+  }
+}
