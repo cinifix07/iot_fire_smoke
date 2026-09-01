@@ -1,30 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createApiClient } from '../services/api.js'
+import { ADMIN_NAV_ITEMS as NAV_ITEMS } from './navigation.js'
 import './style.css'
 
 const API_BASE_CANDIDATES = [
   typeof import.meta !== 'undefined' ? import.meta.env.VITE_API_BASE_URL : '',
   '',
-  'http://127.0.0.1:3001',
+  'http://127.0.0.1:5001',
+  'http://localhost:5001',
+  'http://127.0.0.1:5000',
+  'http://localhost:5000',
 ]
 
-const navigationItems = [
-  { icon: 'dashboard', label: 'Dashboard', target: 'overview', filled: true },
-  { icon: 'visibility', label: 'Live Monitoring', target: 'live-monitoring' },
-  { icon: 'analytics', label: 'Sensor Data', target: 'sensor-data' },
-  { icon: 'history', label: 'Fire Events', target: 'fire-events' },
-  { icon: 'sensors', label: 'Device Status', target: 'device-status' },
-]
-
-const fallbackState = {
+const FALLBACK_SNAPSHOT = {
   connected: false,
   mode: 'connecting',
   source: 'waiting-for-telemetry',
   lastSeenAt: null,
   telemetry: {
-    type: 'telemetry',
     device_id: 'FIRE-SYSTEM-001',
+    device_name: 'Wokwi ESP32 DevKit V1',
+    sensor_name: 'MQ-2 Gas Sensor',
     smoke: 12,
     temperature: 24,
+    humidity: 40,
     flame: 1,
     fire: false,
     alarm: false,
@@ -35,15 +34,21 @@ const fallbackState = {
       id: 'boot',
       time: new Date().toISOString(),
       title: 'Dashboard ready',
-      details: 'Waiting for the Wokwi telemetry bridge.',
+      details: 'Waiting for live telemetry from the Wokwi simulator.',
       severity: 'info',
     },
   ],
   history: [
-    { time: Date.now() - 120000, temperature: 23.4, smoke: 11.2 },
-    { time: Date.now() - 60000, temperature: 23.8, smoke: 11.8 },
-    { time: Date.now(), temperature: 24, smoke: 12 },
+    { time: Date.now() - 120000, temperature: 23.4, smoke: 11.2, humidity: 39.6 },
+    { time: Date.now() - 60000, temperature: 23.8, smoke: 11.8, humidity: 39.8 },
+    { time: Date.now(), temperature: 24, smoke: 12, humidity: 40 },
   ],
+  notifications: [],
+  devices: [],
+  alarms: [],
+  unreadNotifications: 0,
+  activeAlarms: 0,
+  fireStatus: 'NO_DATA',
 }
 
 function toNumber(value, fallback = 0) {
@@ -55,61 +60,33 @@ function toBoolean(value, fallback = false) {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
   if (typeof value === 'string') {
-    if (value.toLowerCase() === 'true' || value === '1') return true
-    if (value.toLowerCase() === 'false' || value === '0') return false
+    const normalized = value.toLowerCase()
+    if (normalized === 'true' || normalized === '1') return true
+    if (normalized === 'false' || normalized === '0') return false
   }
   return fallback
 }
 
 function normalizeTimestamp(value, fallback = Date.now()) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
+  const numeric = Number(value)
+  if (Number.isFinite(numeric)) return numeric
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed.getTime()
 }
 
-function normalizeSnapshot(raw, fallback = fallbackState) {
-  const telemetry = raw?.telemetry || fallback.telemetry
-  const events = Array.isArray(raw?.events) && raw.events.length ? raw.events : fallback.events
-  const history = Array.isArray(raw?.history) && raw.history.length ? raw.history : fallback.history
-
-  return {
-    connected: Boolean(raw?.connected),
-    mode: raw?.mode || fallback.mode,
-    source: raw?.source || fallback.source,
-    lastSeenAt: raw?.lastSeenAt || fallback.lastSeenAt,
-    telemetry: {
-      type: telemetry?.type || 'telemetry',
-      device_id: telemetry?.device_id || fallback.telemetry.device_id,
-      smoke: toNumber(telemetry?.smoke, fallback.telemetry.smoke),
-      temperature: toNumber(telemetry?.temperature, fallback.telemetry.temperature),
-      flame: toNumber(telemetry?.flame, fallback.telemetry.flame),
-      fire: toBoolean(telemetry?.fire, fallback.telemetry.fire),
-      alarm: toBoolean(telemetry?.alarm, fallback.telemetry.alarm),
-      timestamp: normalizeTimestamp(telemetry?.timestamp, fallback.telemetry.timestamp),
-    },
-    events: events.map((event, index) => ({
-      id: event?.id || `${index}-${event?.time || Date.now()}`,
-      time: event?.time || new Date().toISOString(),
-      title: event?.title || 'Telemetry update',
-      details: event?.details || event?.title || 'Telemetry update received.',
-      severity: event?.severity || 'info',
-    })),
-    history: history.map((point) => ({
-      time: normalizeTimestamp(point?.time),
-      temperature: toNumber(point?.temperature, fallback.telemetry.temperature),
-      smoke: toNumber(point?.smoke, fallback.telemetry.smoke),
-    })),
-  }
+function dedupeBases(bases) {
+  return bases.filter((base, index, allBases) => allBases.indexOf(base) === index && (base || index === allBases.indexOf('')))
 }
 
-function formatSeenAt(value) {
-  if (!value) {
-    return 'Waiting for data'
-  }
+function buildEndpoint(base, path) {
+  return base ? `${base}${path}` : path
+}
 
+function formatClock(value) {
+  if (!value) return 'Waiting for data'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return 'Waiting for data'
-  }
+  if (Number.isNaN(date.getTime())) return 'Waiting for data'
 
   return date.toLocaleTimeString([], {
     hour: '2-digit',
@@ -118,11 +95,10 @@ function formatSeenAt(value) {
   })
 }
 
-function formatDateTime(value) {
+function formatLongDate(value) {
+  if (!value) return 'Waiting for data'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return 'Unknown'
-  }
+  if (Number.isNaN(date.getTime())) return 'Waiting for data'
 
   return date.toLocaleString([], {
     dateStyle: 'medium',
@@ -130,376 +106,412 @@ function formatDateTime(value) {
   })
 }
 
-function buildChartBars(history) {
-  const points = history.slice(-6)
+function formatShortClock(value) {
+  if (!value) return '--:--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--:--'
 
-  if (points.length === 0) {
-    return []
-  }
-
-  const maxTemperature = Math.max(...points.map((point) => point.temperature))
-  const minTemperature = Math.min(...points.map((point) => point.temperature))
-  const spread = Math.max(maxTemperature - minTemperature, 1)
-
-  return points.map((point) => {
-    const relative = (point.temperature - minTemperature) / spread
-    return Math.round(35 + relative * 55)
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
+function buildSeries(history, key) {
+  const points = history.slice(-8)
+  if (points.length === 0) return []
+
+  const values = points.map((point) => toNumber(point?.[key], 0))
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const spread = Math.max(max - min, 1)
+
+  return points.map((point, index) => {
+    const value = values[index]
+    const ratio = (value - min) / spread
+
+    return {
+      label: formatShortClock(point?.time),
+      value,
+      height: Math.round(24 + ratio * 74),
+    }
+  })
+}
+
+function calculateRisk(telemetry, activeAlarms) {
+  const smokeValue = toNumber(telemetry.smoke, 0)
+  const temperatureValue = toNumber(telemetry.temperature, 0)
+  const humidityValue = toNumber(telemetry.humidity, 0)
+  const flameDetected = toNumber(telemetry.flame, 1) === 0
+  const warningDetected = smokeValue >= 1500 || temperatureValue >= 50 || humidityValue <= 30 || humidityValue >= 70
+
+  const reasons = []
+
+  if (smokeValue >= 3000) reasons.push('Smoke level exceeded the danger threshold.')
+  else if (smokeValue >= 1500) reasons.push('Smoke level is elevated.')
+
+  if (temperatureValue >= 50) reasons.push('Temperature is in the warning range.')
+
+  if (humidityValue <= 30 || humidityValue >= 70) reasons.push('Humidity is outside the safe band.')
+  if (flameDetected) reasons.push('Flame sensor detected fire.')
+  if (activeAlarms > 0) reasons.push('One or more alarms are active.')
+
+  let score = 12
+  score += Math.min(Math.round((smokeValue / 3000) * 38), 38)
+  score += Math.min(Math.round((temperatureValue / 50) * 30), 30)
+  score += humidityValue <= 30 || humidityValue >= 70 ? 8 : 0
+  score += flameDetected ? 20 : 0
+  score += activeAlarms > 0 ? 12 : 0
+  score = Math.max(0, Math.min(score, 100))
+
+  if (flameDetected) {
+    return {
+      score,
+      label: 'Fire Detected',
+      tone: 'critical',
+      details: 'Immediate evacuation response required.',
+      recommendation: 'Initiate evacuation, confirm relay output, and inspect the monitored area immediately.',
+      reasons: reasons.length ? reasons : ['Critical fire conditions detected.'],
+    }
+  }
+
+  if (warningDetected) {
+    return {
+      score,
+      label: 'Warning Condition',
+      tone: 'warning',
+      details: 'Temperature, smoke, or humidity requires attention.',
+      recommendation: 'Continue monitoring and verify ventilation and sensor placement.',
+      reasons: reasons.length ? reasons : ['A sensor is in its warning range.'],
+    }
+  }
+
+  return {
+    score,
+    label: 'System Secure',
+    tone: 'safe',
+    details: 'All sensors operating normally.',
+    recommendation: 'Maintain continuous monitoring.',
+    reasons: reasons.length ? reasons : ['All monitored values remain within limits.'],
+  }
+}
+
+function buildSnapshot(statusPayload, historyPayload, notificationsPayload, devicesPayload, alarmsPayload) {
+  const statusData = statusPayload?.data || {}
+  const historyData = historyPayload?.data || {}
+  const notifications = Array.isArray(notificationsPayload?.data) ? notificationsPayload.data : []
+  const devices = Array.isArray(devicesPayload?.data) ? devicesPayload.data : []
+  const alarms = Array.isArray(alarmsPayload?.data) ? alarmsPayload.data : []
+
+  const latestReading = statusData.latest_reading || null
+  const latestEvent = statusData.latest_fire_event || null
+  const recentEvents = Array.isArray(historyData.recent_fire_events) ? historyData.recent_fire_events : []
+  const alarmHistory = Array.isArray(historyData.alarm_history) ? historyData.alarm_history : []
+  const sensorTrends = Array.isArray(historyData.sensor_trends) ? historyData.sensor_trends : []
+
+  const telemetry = {
+    device_id: latestReading?.device_id ? String(latestReading.device_id) : FALLBACK_SNAPSHOT.telemetry.device_id,
+    device_name: latestReading?.device_name || FALLBACK_SNAPSHOT.telemetry.device_name,
+    sensor_name: latestReading?.sensor_name || FALLBACK_SNAPSHOT.telemetry.sensor_name,
+    smoke: toNumber(statusData.latest_smoke, latestReading?.smoke_level ?? FALLBACK_SNAPSHOT.telemetry.smoke),
+    temperature: toNumber(statusData.latest_temperature, latestReading?.temperature ?? FALLBACK_SNAPSHOT.telemetry.temperature),
+    humidity: toNumber(statusData.latest_humidity, latestReading?.humidity ?? FALLBACK_SNAPSHOT.telemetry.humidity),
+    flame: statusData.flame_status !== undefined
+      ? (toBoolean(statusData.flame_status) ? 0 : 1)
+      : (toBoolean(latestReading?.flame_detected) ? 0 : 1),
+    fire: statusData.fire_status === 'CRITICAL',
+    alarm: toNumber(statusData.active_alarms, 0) > 0,
+    timestamp: normalizeTimestamp(latestReading?.recorded_at || latestEvent?.detected_at || Date.now()),
+  }
+
+  const events = [
+    ...sensorTrends.slice(0, 3).map((reading) => ({
+      id: `reading-${reading.id}`,
+      time: reading.recorded_at,
+      title: `Live reading #${reading.id}`,
+      details: `Temperature ${toNumber(reading.temperature, 0).toFixed(1)} C, smoke ${toNumber(reading.smoke_level, 0).toFixed(0)} ppm, humidity ${toNumber(reading.humidity, 0).toFixed(1)} %.`,
+      severity: reading.flame_detected ? 'critical' : 'info',
+    })),
+    ...(latestEvent
+      ? [{
+          id: `fire-${latestEvent.id}`,
+          time: latestEvent.detected_at,
+          title: latestEvent.event_type || 'Fire event',
+          details: latestEvent.description || latestEvent.severity || 'Fire event detected',
+          severity: latestEvent.severity || 'warning',
+        }]
+      : []),
+    ...recentEvents.slice(0, 3).map((event) => ({
+      id: `event-${event.id}`,
+      time: event.detected_at,
+      title: event.event_type || 'Fire event',
+      details: event.description || event.severity || 'Fire event detected',
+      severity: event.severity || 'warning',
+    })),
+    ...alarmHistory.slice(0, 2).map((alarm) => ({
+      id: `alarm-${alarm.id}`,
+      time: alarm.activated_at,
+      title: alarm.alarm_type || 'Alarm',
+      details: alarm.status || 'Alarm activated',
+      severity: alarm.status === 'active' ? 'warning' : 'info',
+    })),
+  ]
+
+  return {
+    connected: Boolean(statusData.latest_reading || recentEvents.length || notifications.length || devices.length || alarms.length),
+    mode: 'wokwi-live',
+    source: 'wokwi-postgresql-live',
+    lastSeenAt: latestReading?.recorded_at || latestEvent?.detected_at || notifications[0]?.sent_at || Date.now(),
+    telemetry,
+    events: events.length
+      ? events
+      : [{
+          id: 'boot',
+          time: new Date().toISOString(),
+          title: 'Dashboard ready',
+          details: 'Connected to the PostgreSQL backend.',
+          severity: 'info',
+        }],
+    history: sensorTrends.map((point) => ({
+      time: normalizeTimestamp(point.recorded_at),
+      temperature: point.temperature,
+      smoke: point.smoke_level,
+      humidity: point.humidity ?? telemetry.humidity,
+    })),
+    notifications: notifications.length
+      ? notifications
+      : [{
+          id: 'notification-boot',
+          title: 'Telemetry connected',
+          message: 'Awaiting the next sensor update.',
+          notification_type: 'info',
+          status: 'unread',
+          sent_at: new Date().toISOString(),
+        }],
+    devices: devices.length
+      ? devices
+      : [{
+          id: 'device-boot',
+          device_code: 'wokwi-esp32-devkit-v1',
+          device_name: telemetry.device_name,
+          status: 'active',
+          last_seen_at: telemetry.timestamp,
+        }],
+    alarms: alarms.length ? alarms : alarmHistory,
+    unreadNotifications: notifications.filter((item) => item.status === 'unread').length,
+    activeAlarms: toNumber(statusData.active_alarms, 0),
+    fireStatus: statusData.fire_status || 'NO_DATA',
+  }
+}
+
 function buildOfflineSnapshot() {
-  return normalizeSnapshot({
+  return {
+    ...FALLBACK_SNAPSHOT,
     connected: false,
     mode: 'offline',
     source: 'telemetry-bridge-unreachable',
     lastSeenAt: null,
-    telemetry: fallbackState.telemetry,
-    events: [
-      {
-        id: 'offline',
-        time: new Date().toISOString(),
-        title: 'Telemetry bridge unavailable',
-        details: 'The dashboard is waiting for the backend connection to recover.',
-        severity: 'warning',
-      },
-    ],
-    history: [],
-  })
+    unreadNotifications: 0,
+    activeAlarms: 0,
+    fireStatus: 'NO_DATA',
+  }
 }
 
-function dedupeBases(bases) {
-  return bases.filter((base, index, allBases) => {
-    if (!base) {
-      return index === allBases.indexOf('')
-    }
-
-    return allBases.indexOf(base) === index
-  })
+function StatusCard({ title, value, subtitle, tone, icon, meta }) {
+  return (
+    <article className={`status-card status-card--${tone}`}>
+      <div className="status-card__header">
+        <span className="status-card__eyebrow">{title}</span>
+        <span className="material-symbols-outlined status-card__icon" aria-hidden="true">
+          {icon}
+        </span>
+      </div>
+      <div className="status-card__body">
+        <strong className="status-card__value">{value}</strong>
+        <span className={`status-card__badge status-card__badge--${tone}`}>{subtitle}</span>
+      </div>
+      {meta ? <p className="status-card__meta">{meta}</p> : null}
+    </article>
+  )
 }
 
-function buildEndpoint(base, path) {
-  return base ? `${base}${path}` : path
-}
-
-function Dashboard({ onLogout }) {
-  const [snapshot, setSnapshot] = useState(fallbackState)
+function Dashboard({ onLogout, onNavigate, user, activePage = 'dashboard' }) {
+  const [snapshot, setSnapshot] = useState(FALLBACK_SNAPSHOT)
   const [connectionState, setConnectionState] = useState('connecting')
-  const [activeSection, setActiveSection] = useState('overview')
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [copyLabel, setCopyLabel] = useState('Copy Snapshot')
-  const streamRef = useRef(null)
-  const apiBaseRef = useRef('')
-  const reconnectTimerRef = useRef(null)
-  const retryCountRef = useRef(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const liveStreamRef = useRef(null)
   const mountedRef = useRef(false)
 
-  const applySnapshot = (nextSnapshot, connectionHint) => {
-    if (!mountedRef.current) {
-      return
-    }
+  const metricSeries = useMemo(() => ({
+    temperature: buildSeries(snapshot.history, 'temperature'),
+    smoke: buildSeries(snapshot.history, 'smoke'),
+    humidity: buildSeries(snapshot.history, 'humidity'),
+  }), [snapshot.history])
 
-    setSnapshot(normalizeSnapshot(nextSnapshot))
+  const risk = useMemo(() => calculateRisk(snapshot.telemetry, snapshot.activeAlarms), [snapshot.telemetry, snapshot.activeAlarms])
 
-    if (connectionHint) {
-      setConnectionState(connectionHint)
+  const lastUpdateLabel = formatClock(snapshot.lastSeenAt)
+  const lastUpdateVerbose = formatLongDate(snapshot.lastSeenAt)
+  const closeSidebar = () => setSidebarOpen(false)
+  const closeStream = () => {
+    if (liveStreamRef.current) {
+      liveStreamRef.current.close()
+      liveStreamRef.current = null
     }
   }
 
-  const fetchSnapshotFromBridge = async () => {
+  const openStream = (base) => {
+    if (!mountedRef.current) return
+    closeStream()
+
+    try {
+      const stream = new EventSource(buildEndpoint(base, '/api/dashboard/live'))
+      liveStreamRef.current = stream
+
+      stream.onopen = () => {
+        if (mountedRef.current) setConnectionState('live')
+      }
+
+      stream.addEventListener('ready', () => {
+        if (mountedRef.current) setConnectionState('live')
+      })
+
+      stream.addEventListener('dashboard-update', () => {
+        void refreshState(false)
+      })
+
+      stream.onerror = () => {
+        if (!mountedRef.current) return
+        setConnectionState((current) => (current === 'offline' ? current : 'reconnecting'))
+      }
+    } catch {
+      setConnectionState('offline')
+    }
+  }
+
+  const fetchSnapshot = async () => {
     const bases = dedupeBases(API_BASE_CANDIDATES)
 
     for (const base of bases) {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 3000)
-
       try {
-        const [stateResponse, healthResponse] = await Promise.all([
-          fetch(buildEndpoint(base, '/api/state'), { signal: controller.signal }),
-          fetch(buildEndpoint(base, '/api/health'), { signal: controller.signal }),
+        const client = createApiClient(base, { timeout: 4000 })
+        const [statusResponse, historyResponse, notificationsResponse, devicesResponse, alarmsResponse] = await Promise.all([
+          client.get('/api/dashboard/status'),
+          client.get('/api/dashboard/history'),
+          client.get('/api/notifications?limit=8'),
+          client.get('/api/devices?limit=8'),
+          client.get('/api/alarms?limit=8'),
         ])
 
-        if (!stateResponse.ok || !healthResponse.ok) {
-          continue
-        }
+        openStream(base)
 
-        const [statePayload, healthPayload] = await Promise.all([stateResponse.json(), healthResponse.json()])
-        apiBaseRef.current = base
-        return {
-          snapshot: statePayload,
-          connectionState: healthPayload.connected || statePayload?.connected || statePayload?.mode === 'wokwi-live'
-            ? 'live'
-            : 'standby',
-        }
+        return buildSnapshot(
+          statusResponse.data,
+          historyResponse.data,
+          notificationsResponse.data,
+          devicesResponse.data,
+          alarmsResponse.data,
+        )
       } catch {
-        // Try the next bridge candidate.
-      } finally {
-        window.clearTimeout(timeout)
+        // Try the next backend candidate.
       }
     }
 
     return null
   }
 
-  const refreshState = async (showLoadingState = true) => {
-    if (showLoadingState) {
-      setIsRefreshing(true)
-    }
+  const refreshState = async (showSpinner = true) => {
+    if (!mountedRef.current) return
+    if (showSpinner) setRefreshing(true)
 
     try {
-      const bridgeState = await fetchSnapshotFromBridge()
-
-      if (!bridgeState) {
-        throw new Error('Telemetry bridge returned an error.')
+      const nextSnapshot = await fetchSnapshot()
+      if (!nextSnapshot) {
+        throw new Error('Backend unavailable')
       }
 
-      applySnapshot(bridgeState.snapshot, bridgeState.connectionState)
-      retryCountRef.current = 0
+      setSnapshot(nextSnapshot)
+      setConnectionState('live')
     } catch {
-      if (streamRef.current) {
-        setConnectionState('reconnecting')
-      } else {
-        applySnapshot(buildOfflineSnapshot(), 'offline')
-      }
+      closeStream()
+      setSnapshot(buildOfflineSnapshot())
+      setConnectionState('offline')
     } finally {
-      if (mountedRef.current && showLoadingState) {
-        setIsRefreshing(false)
-      }
+      if (mountedRef.current && showSpinner) setRefreshing(false)
     }
   }
 
   useEffect(() => {
     mountedRef.current = true
-    const bootstrapTimer = window.setTimeout(() => {
+
+    void refreshState(false)
+
+    const intervalId = window.setInterval(() => {
       void refreshState(false)
-    }, 0)
+    }, 15000)
 
-    const connectStream = () => {
-      if (!mountedRef.current) {
-        return
-      }
-
-      const streamBase = apiBaseRef.current || dedupeBases(API_BASE_CANDIDATES)[0] || ''
-
-      try {
-        streamRef.current?.close()
-        const stream = new EventSource(buildEndpoint(streamBase, '/api/telemetry/stream'))
-        streamRef.current = stream
-
-        stream.onopen = () => {
-          if (mountedRef.current) {
-            setConnectionState('live')
-          }
-          retryCountRef.current = 0
-        }
-
-        stream.addEventListener('snapshot', (event) => {
-          if (!mountedRef.current) {
-            return
-          }
-
-          try {
-            const nextSnapshot = JSON.parse(event.data)
-            applySnapshot(nextSnapshot, nextSnapshot.connected ? 'live' : 'standby')
-            retryCountRef.current = 0
-          } catch {
-            applySnapshot(buildOfflineSnapshot(), 'offline')
-          }
-        })
-
-        stream.onerror = () => {
-          if (!mountedRef.current) {
-            return
-          }
-
-          setConnectionState((current) => (current === 'live' ? 'reconnecting' : current))
-
-          stream.close()
-          const delay = Math.min(3000, 500 * 2 ** retryCountRef.current)
-          retryCountRef.current += 1
-
-          if (reconnectTimerRef.current) {
-            window.clearTimeout(reconnectTimerRef.current)
-          }
-
-          reconnectTimerRef.current = window.setTimeout(() => {
-            connectStream()
-          }, delay)
-        }
-      } catch {
-        applySnapshot(buildOfflineSnapshot(), 'offline')
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false)
       }
     }
 
-    connectStream()
+    window.addEventListener('keydown', onKeyDown)
 
     return () => {
       mountedRef.current = false
-      window.clearTimeout(bootstrapTimer)
-      streamRef.current?.close()
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current)
-      }
+      closeStream()
+      window.clearInterval(intervalId)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [])
 
-  const telemetry = snapshot.telemetry || fallbackState.telemetry
-  const smokeValue = toNumber(telemetry.smoke, fallbackState.telemetry.smoke)
-  const temperatureValue = toNumber(telemetry.temperature, fallbackState.telemetry.temperature)
-  const flameValue = toNumber(telemetry.flame, fallbackState.telemetry.flame)
-  const fireDetected = Boolean(telemetry.fire || telemetry.alarm || flameValue === 0)
-  const smokeCritical = smokeValue > 3000
-  const temperatureCritical = temperatureValue > 50
-  const liveMode = snapshot.connected || snapshot.mode === 'wokwi-live' || snapshot.mode === 'local-sim'
-  const chartBars = buildChartBars(snapshot.history || fallbackState.history)
-  const latestEvents = snapshot.events?.length ? snapshot.events : []
-  const lastSeenLabel = formatSeenAt(snapshot.lastSeenAt)
+  const handleExportCsv = () => {
+    const rows = ['time,temperature,smoke,humidity']
+    snapshot.history.forEach((point) => {
+      rows.push([
+        formatLongDate(point.time),
+        toNumber(point.temperature, 0),
+        toNumber(point.smoke, 0),
+        toNumber(point.humidity, 0),
+      ].join(','))
+    })
 
-  const operationalState = fireDetected
-    ? {
-       
-      }
-    : smokeCritical || temperatureCritical
-      ? {
-          
-        }
-      : {
-          
-        }
-
-  const feedLabel = snapshot.mode === 'wokwi-live'
-    ? 'Wokwi Live Feed'
-    : snapshot.mode === 'local-sim'
-      ? 'Local Simulator'
-      : snapshot.mode === 'offline'
-        ? 'Bridge Offline'
-        : 'Telemetry Live Feed'
-
-  const summaryCards = useMemo(
-    () => [
-      {
-        label: 'Device',
-        value: telemetry.device_id || 'FIRE-SYSTEM-001',
-        note: snapshot.source || 'telemetry bridge',
-      },
-      {
-        label: 'Mode',
-        value: snapshot.mode || 'connecting',
-        note: feedLabel,
-      },
-      {
-        label: 'Last Update',
-        value: lastSeenLabel,
-        note: snapshot.connected ? 'Live stream active' : 'Awaiting heartbeat',
-      },
-      {
-        label: 'Response',
-        value: fireDetected ? 'Immediate' : 'Normal',
-        note: fireDetected ? 'Alarm and relay output engaged' : 'Monitoring only',
-      },
-    ],
-    [feedLabel, fireDetected, lastSeenLabel, snapshot.connected, snapshot.mode, snapshot.source, telemetry.device_id],
-  )
-
-  const navigateTo = (target) => {
-    setActiveSection(target)
-    document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const exportHistory = () => {
-    const rows = snapshot.history || []
-    const csv = [
-      ['timestamp', 'temperature_c', 'smoke_ppm'],
-      ...rows.map((point) => [new Date(point.time).toISOString(), point.temperature, point.smoke]),
-    ]
-      .map((row) => row.join(','))
-      .join('\n')
-
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `guardianmesh-telemetry-${new Date().toISOString().slice(0, 10)}.csv`
+    link.download = 'wokwi-dashboard-history.csv'
     link.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    URL.revokeObjectURL(url)
   }
-
-  const copySnapshot = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2))
-      setCopyLabel('Copied')
-      window.setTimeout(() => setCopyLabel('Copy Snapshot'), 1500)
-    } catch {
-      setCopyLabel('Copy Failed')
-      window.setTimeout(() => setCopyLabel('Copy Snapshot'), 1500)
-    }
-  }
-
-  const metrics = [
-    {
-      label: 'Temperature',
-      icon: 'thermostat',
-      value: `${temperatureValue.toFixed(1)} C`,
-      status: temperatureCritical ? 'Over limit' : 'Nominal',
-      statusClass: temperatureCritical ? 'is-critical' : 'is-accent',
-      sparkline: chartBars.length ? chartBars.map((bar) => Math.max(28, Math.min(100, bar))) : [33, 50, 72, 100],
-    },
-    {
-      label: 'Smoke Level',
-      icon: 'air',
-      value: `${Math.round(smokeValue)} ppm`,
-      status: smokeCritical ? 'Danger' : 'Safe',
-      statusClass: smokeCritical ? 'is-critical' : 'is-safe',
-    },
-    {
-      label: 'Flame Sensor',
-      icon: 'local_fire_department',
-      value: fireDetected ? 'Detected' : 'Clear',
-      status: fireDetected ? 'Immediate action required' : 'No Flame Detected',
-      statusClass: fireDetected ? 'is-critical' : 'is-safe',
-      compact: true,
-    },
-    {
-      label: 'Alarm Status',
-      icon: 'notifications_active',
-      value: fireDetected ? 'Active' : 'Standby',
-      status: fireDetected ? 'Buzzer Engaged' : 'Buzzer Ready',
-      statusClass: fireDetected ? 'is-critical' : 'is-accent',
-      compact: true,
-    },
-  ]
-
-  const heroTitle = fireDetected ? 'FIRE ALERT' : 'SYSTEM SECURE'
-  const heroCopy = fireDetected
-    ? 'Evacuation response required. Alarm and indicator relays are active.'
-    : 'ESP32, MQ-2, DHT22, and flame sensor are online through the Wokwi bridge.'
 
   return (
-    <div className="admin-page">
-      <div className="admin-glow" aria-hidden="true" />
+    <div className={`dashboard-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+      <div className="dashboard-glow" />
 
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand__mark" aria-hidden="true">
-            <span className="material-symbols-outlined" data-weight="fill">
-              local_fire_department
-            </span>
+      <aside className={`dashboard-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+        <div className="dashboard-brand">
+          <div className="dashboard-brand__mark" aria-hidden="true">
+            <span className="material-symbols-outlined">shield_with_heart</span>
           </div>
-          <h2>Fire Safety Core</h2>
-          <p>{feedLabel}</p>
+          <h2>GuardianMesh IoT</h2>
+          <p>{connectionState === 'live' ? 'Live telemetry active' : 'Monitoring standby'}</p>
         </div>
 
-        <nav className="admin-nav" aria-label="Primary">
-          {navigationItems.map((item) => (
+        <nav className="dashboard-nav" aria-label="Primary">
+          {NAV_ITEMS.map((item) => (
             <button
+              className={`dashboard-nav__link ${item.page === activePage ? 'is-active' : ''}`}
               key={item.label}
-              className={`admin-nav__link${activeSection === item.target ? ' is-active' : ''}`}
               type="button"
-              onClick={() => navigateTo(item.target)}
+              onClick={() => {
+                if (item.page) onNavigate?.(item.page)
+                closeSidebar()
+              }}
             >
-              <span
-                className="material-symbols-outlined admin-nav__icon"
-                aria-hidden="true"
-                data-weight={item.filled ? 'fill' : undefined}
-              >
+              <span className="material-symbols-outlined" aria-hidden="true">
                 {item.icon}
               </span>
               <span>{item.label}</span>
@@ -507,214 +519,206 @@ function Dashboard({ onLogout }) {
           ))}
         </nav>
 
-        <div className="admin-sidebar__footer">
-          <button className="admin-overrides" type="button" title="Reserved for future hardware override integration">
+        <div className="dashboard-sidebar__footer">
+          <button className="dashboard-emergency" type="button" onClick={closeSidebar}>
             <span className="material-symbols-outlined" aria-hidden="true">
               warning
             </span>
             Emergency Override
           </button>
-
-     
-  
+          <div className={`dashboard-connection is-${connectionState}`}>
+            {connectionState.replace('-', ' ')}
+          </div>
+          <button className="dashboard-sidebar__link" type="button" onClick={closeSidebar}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              close
+            </span>
+            Close panel
+          </button>
         </div>
       </aside>
 
-      <div className="admin-content">
-        <header className="admin-topbar">
-          <div className="admin-topbar__title">
- 
-           
-       
+      {sidebarOpen ? <button className="dashboard-backdrop" type="button" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} /> : null}
+
+      <div className="dashboard-content">
+        <header className="dashboard-topbar">
+          <div className="dashboard-topbar__left">
+            <button
+              className="dashboard-icon-button"
+              type="button"
+              aria-label="Open navigation"
+              onClick={() => setSidebarOpen((open) => !open)}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                menu
+              </span>
+            </button>
           </div>
 
-          <div className="admin-topbar__actions" aria-label="System controls">
-            <span className={`admin-connection-pill is-${connectionState}`}>
-              {snapshot.mode === 'wokwi-live'
-                ? 'Wokwi Live'
-                : connectionState === 'live'
-                  ? 'Live Connected'
-                  : connectionState === 'reconnecting'
-                    ? 'Reconnecting'
-                    : connectionState === 'offline'
-                      ? 'Offline'
-                      : 'Connecting'}
-            </span>
-            <button type="button" className="icon-button" aria-label="Refresh telemetry" onClick={refreshState}>
-              <span className="material-symbols-outlined" aria-hidden="true">
+          <div className="dashboard-topbar__actions">
+            <div className={`dashboard-connection is-${connectionState}`}>
+              {refreshing ? 'refreshing' : connectionState === 'live' ? 'live' : connectionState}
+            </div>
+            <button
+              className="dashboard-icon-button"
+              type="button"
+              aria-label="Refresh dashboard"
+              onClick={() => void refreshState(true)}
+            >
+              <span className={`material-symbols-outlined ${refreshing ? 'is-spinning' : ''}`} aria-hidden="true">
                 refresh
               </span>
             </button>
-            <button type="button" className="icon-button" aria-label="Copy telemetry snapshot" onClick={copySnapshot}>
-              <span className="material-symbols-outlined" aria-hidden="true">
-                content_copy
-              </span>
-            </button>
-            <button type="button" className="icon-button icon-button--notification" aria-label="Notifications">
+            <button className="dashboard-icon-button" type="button" aria-label="Notifications">
               <span className="material-symbols-outlined" aria-hidden="true">
                 notifications
               </span>
-              <span className="icon-button__dot" aria-hidden="true" />
+              {snapshot.unreadNotifications > 0 ? <span className="dashboard-notification-dot" /> : null}
             </button>
-            <button type="button" className="profile-button" aria-label="User profile">
+            <div className="dashboard-user-chip">
               <span className="material-symbols-outlined" aria-hidden="true">
                 person
               </span>
-            </button>
-            <button type="button" className="icon-button" aria-label="Log out" onClick={onLogout}>
+              <span>{user?.name || 'Operator'}</span>
+            </div>
+            <button className="dashboard-user-chip dashboard-user-chip--outline" type="button" onClick={onLogout}>
               <span className="material-symbols-outlined" aria-hidden="true">
                 logout
               </span>
+              <span>Logout</span>
             </button>
           </div>
         </header>
 
-        <main className="admin-main">
-          <section className="admin-intro" id="overview">
-            <h2>Overview</h2>
-         
+        <main className="dashboard-main" id="overview">
+          <section className="dashboard-intro">
+            <h1>Overview</h1>
+            <p>Wokwi Live Feed is feeding live telemetry into PostgreSQL and the dashboard below.</p>
           </section>
 
-          <section className={`admin-status-banner is-${operationalState.tone}`} id="device-status">
-           
-            <div className="admin-status-banner__meta">
-              <span>{feedLabel}</span>
-              <span>Last seen {lastSeenLabel}</span>
-            </div>
-          </section>
-
-          <section className="admin-summary" aria-label="Telemetry summary">
-            {summaryCards.map((card) => (
-              <article className="glass-card admin-summary__card" key={card.label}>
-                <p className="admin-summary__label">{card.label}</p>
-                <h3 className="admin-summary__value">{card.value}</h3>
-                <p className="admin-summary__note">{card.note}</p>
-              </article>
-            ))}
-          </section>
-
-          <section className="admin-grid">
-            <article className="glass-card admin-hero" id="live-monitoring">
-              <div className="admin-hero__halo" aria-hidden="true" />
-              <div className="admin-hero__status">
-                <div className="admin-hero__orb">
-                  <div
-                    className={`admin-hero__pulse is-${operationalState.tone}${fireDetected ? ' is-alert' : ''}`}
-                    aria-hidden="true"
-                  />
-                  <span className="material-symbols-outlined" aria-hidden="true">
-                    {fireDetected ? 'dangerous' : smokeCritical || temperatureCritical ? 'warning' : 'verified'}
+          <section className="dashboard-hero-grid">
+            <article className={`dashboard-hero dashboard-hero--${risk.tone}`}>
+              <div className="dashboard-hero__icon-wrap" aria-hidden="true">
+                <div className="dashboard-hero__pulse" />
+                {risk.tone === 'critical' ? (
+                  <span className={`material-symbols-outlined dashboard-hero__icon dashboard-hero__icon--critical`}>
+                    local_fire_department
                   </span>
-                </div>
-                <div className="admin-hero__copy">
-                  <h3>{heroTitle}</h3>
-                  <p>{heroCopy}</p>
-                </div>
-                <div className="admin-hero__chips">
-                  <span className="admin-chip">Device {telemetry.device_id}</span>
-                  <span className="admin-chip">Source {snapshot.source || 'telemetry bridge'}</span>
-                  <span className="admin-chip">Updated {formatDateTime(telemetry.timestamp)}</span>
-                </div>
+                ) : (
+                  <span className={`dashboard-hero__icon dashboard-hero__icon--safe`} aria-hidden="true">
+                    <svg
+                      className="dashboard-hero__icon-svg"
+                      viewBox="0 0 24 24"
+                      role="img"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        fill="currentColor"
+                        d="M12 2.25 5.5 4.5v5.15c0 4.64 2.87 8.84 6.5 10.6 3.63-1.76 6.5-5.96 6.5-10.6V4.5L12 2.25Zm0 2.12 4.5 1.56v3.57c0 3.77-2.14 7.19-4.5 8.78-2.36-1.59-4.5-5.01-4.5-8.78V5.93L12 4.37Z"
+                      />
+                    </svg>
+                  </span>
+                )}
               </div>
+              <h2>{risk.label}</h2>
+              <p>{risk.details}</p>
+              <span className="dashboard-hero__recommendation">{risk.recommendation}</span>
             </article>
 
-            <article className="glass-card admin-timeline" id="fire-events">
+            <article className="dashboard-activity" id="fire-events">
               <h3>
                 <span className="material-symbols-outlined" aria-hidden="true">
                   history
                 </span>
                 Activity Log
               </h3>
-
-              <div className="admin-timeline__list">
-                {latestEvents.length ? (
-                  latestEvents.slice(0, 3).map((item, index) => (
-                    <div className="admin-timeline__item" key={item.id || `${item.time}-${index}`}>
-                      <div className="admin-timeline__marker">
-                        <span className={`admin-timeline__dot is-${item.severity || 'info'}`} />
-                        {index < 2 ? <span className="admin-timeline__line" /> : null}
-                      </div>
-                      <div className="admin-timeline__content">
-                        <p className="admin-timeline__time">{formatSeenAt(item.time)}</p>
-                        <p className="admin-timeline__text">{item.details || item.title}</p>
-                      </div>
+              <div className="dashboard-activity__list">
+                {snapshot.events.slice(0, 5).map((event) => (
+                  <div className="dashboard-timeline-item" key={event.id}>
+                    <div className="dashboard-timeline-item__dot" />
+                    <div className="dashboard-timeline-item__content">
+                      <div className="dashboard-timeline-item__time">{formatClock(event.time)}</div>
+                      <div className="dashboard-timeline-item__title">{event.title}</div>
+                      <div className="dashboard-timeline-item__details">{event.details}</div>
                     </div>
-                  ))
-                ) : (
-                  <div className="admin-empty-state">
-                    <p>No recent events yet.</p>
-                    <span>The system will populate this feed as telemetry arrives.</span>
                   </div>
-                )}
+                ))}
               </div>
             </article>
+          </section>
 
-            {metrics.map((metric, index) => (
-              <article
-                className="glass-card admin-metric"
-                id={index === 0 ? 'sensor-data' : undefined}
-                key={metric.label}
-              >
-                <div className="admin-metric__header">
-                  <span className="admin-metric__label">{metric.label}</span>
-                  <span className="material-symbols-outlined admin-metric__icon" aria-hidden="true">
-                    {metric.icon}
-                  </span>
-                </div>
+          <section className="dashboard-metrics" id="sensor-data">
+            <StatusCard
+              title="Temperature"
+              value={`${toNumber(snapshot.telemetry.temperature, 0).toFixed(1)} C`}
+              subtitle={snapshot.telemetry.temperature >= 50 ? 'WARNING' : 'NOMINAL'}
+              tone={snapshot.telemetry.temperature >= 50 ? 'warning' : 'info'}
+              icon="device_thermostat"
+              meta="Live sensor telemetry from the Wokwi bench."
+            />
+            <StatusCard
+              title="Smoke Level"
+              value={`${toNumber(snapshot.telemetry.smoke, 0)} ppm`}
+              subtitle={snapshot.telemetry.smoke >= 1500 ? 'ELEVATED' : 'SAFE'}
+              tone={snapshot.telemetry.smoke >= 1500 ? 'warning' : 'safe'}
+              icon="air"
+              meta="MQ-2 gas sensor output."
+            />
+            <StatusCard
+              title="Humidity"
+              value={`${toNumber(snapshot.telemetry.humidity, 0).toFixed(1)} %`}
+              subtitle="NOMINAL"
+              tone="safe"
+              icon="water_drop"
+              meta="DHT22 humidity reading."
+            />
+            <StatusCard
+              title="Flame Sensor"
+              value={toNumber(snapshot.telemetry.flame, 1) === 0 ? 'Detected' : 'Clear'}
+              subtitle={toNumber(snapshot.telemetry.flame, 1) === 0 ? 'IMMEDIATE ACTION REQUIRED' : 'NO FLAME DETECTED'}
+              tone={toNumber(snapshot.telemetry.flame, 1) === 0 ? 'critical' : 'safe'}
+              icon="local_fire_department"
+              meta={`Fire status ${snapshot.fireStatus}`}
+            />
+          </section>
 
-                <div className="admin-metric__body">
-                  <div className="admin-metric__copy">
-                    <span className={`admin-metric__value${metric.compact ? ' is-compact' : ''}`}>
-                      {metric.value}
-                    </span>
-                    <span className={`admin-metric__status ${metric.statusClass || ''}`.trim()}>
-                      {metric.status}
-                    </span>
-                  </div>
-
-                  {metric.sparkline ? (
-                    <div className="admin-sparkline" aria-hidden="true">
-                      {metric.sparkline.map((height, barIndex) => (
-                        <span
-                          className="admin-sparkline__bar"
-                          key={`${metric.label}-${barIndex}`}
-                          style={{ height: `${height}%` }}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-
-            <article className="glass-card admin-chart">
-              <div className="admin-chart__header">
+          <section className="dashboard-lower-grid">
+            <article className="dashboard-chart">
+              <div className="dashboard-chart__header">
                 <div>
                   <h3>Temperature Stability (12h)</h3>
-                  <p className="admin-chart__subtitle">
-                    Updated {lastSeenLabel}
-                    {snapshot.source ? ` - ${snapshot.source}` : ''}
-                  </p>
+                  <p>Updated {lastUpdateVerbose} • {snapshot.source}</p>
                 </div>
-                <div className="admin-chart__actions">
-                  <button type="button" className="admin-export" onClick={refreshState} disabled={isRefreshing}>
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                <div className="dashboard-chart__actions">
+                  <button type="button" onClick={() => void refreshState(true)}>
+                    Refresh
                   </button>
-                  <button type="button" className="admin-export" onClick={exportHistory}>
+                  <button type="button" onClick={handleExportCsv}>
                     Export CSV
                   </button>
                 </div>
               </div>
 
-              <div className="admin-chart__canvas">
-                <div className="admin-chart__grid" aria-hidden="true" />
-                <div className="admin-chart__bars" aria-hidden="true">
-                  {(chartBars.length ? chartBars : [40, 45, 35, 50, 42, 48]).map((height, index) => (
-                    <span className="admin-chart__bar" key={`bar-${index}`} style={{ height: `${height}%` }} />
-                  ))}
-                </div>
-                <span className="admin-chart__label">Temperature trend from live telemetry</span>
+              <div className="dashboard-bars" aria-hidden="true">
+                {metricSeries.temperature.map((point, index) => (
+                  <div className="dashboard-bar" key={`${point.label}-${index}`}>
+                    <span className="dashboard-bar__fill" style={{ height: `${point.height}%` }} />
+                    <span className="dashboard-bar__label">{point.label}</span>
+                  </div>
+                ))}
               </div>
+            </article>
+
+            <article className="dashboard-summary">
+              <h3>System Snapshot</h3>
+              <p>{risk.recommendation}</p>
+              <ul>
+                <li>Connection: {connectionState}</li>
+                <li>Last update: {lastUpdateLabel}</li>
+                <li>Active alarms: {snapshot.activeAlarms}</li>
+                <li>Unread notifications: {snapshot.unreadNotifications}</li>
+              </ul>
             </article>
           </section>
         </main>

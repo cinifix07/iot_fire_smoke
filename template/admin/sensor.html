@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sensor Calibration &amp; Reporting - GuardianMesh</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-tint": "#4a5f82",
+                      "on-primary-container": "#798fb4",
+                      "surface-container": "#efedf0",
+                      "on-secondary-fixed-variant": "#194b68",
+                      "surface-container-lowest": "#ffffff",
+                      "on-background": "#1b1b1e",
+                      "primary-fixed-dim": "#b2c7f0",
+                      "on-primary-fixed": "#011b3b",
+                      "on-secondary-container": "#34627f",
+                      "surface-dim": "#dbd9dd",
+                      "error": "#ba1a1a",
+                      "on-surface-variant": "#44474e",
+                      "primary-container": "#0f2747",
+                      "on-tertiary-container": "#b38459",
+                      "surface-variant": "#e3e2e5",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "surface-bright": "#faf9fc",
+                      "tertiary-fixed": "#ffdcc0",
+                      "surface-container-highest": "#e3e2e5",
+                      "on-error-container": "#93000a",
+                      "tertiary-container": "#3d1f00",
+                      "on-error": "#ffffff",
+                      "background": "#faf9fc",
+                      "surface-container-low": "#f5f3f6",
+                      "on-surface": "#1b1b1e",
+                      "outline": "#74777f",
+                      "secondary-fixed": "#c8e6ff",
+                      "inverse-on-surface": "#f2f0f3",
+                      "on-tertiary-fixed": "#2d1600",
+                      "on-tertiary-fixed-variant": "#633f1a",
+                      "secondary-fixed-dim": "#9fccee",
+                      "on-primary": "#ffffff",
+                      "on-primary-fixed-variant": "#324769",
+                      "surface-container-high": "#e9e7eb",
+                      "surface": "#faf9fc",
+                      "inverse-primary": "#b2c7f0",
+                      "secondary-container": "#b0ddff",
+                      "on-secondary-fixed": "#001e2f",
+                      "outline-variant": "#c4c6cf",
+                      "primary-fixed": "#d5e3ff",
+                      "error-container": "#ffdad6",
+                      "secondary": "#356381",
+                      "primary": "#00122b",
+                      "tertiary": "#1f0d00",
+                      "inverse-surface": "#303033",
+                      "tertiary-fixed-dim": "#f2bc8d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "container-max": "1440px",
+                      "unit": "8px",
+                      "gutter": "24px",
+                      "margin-desktop": "40px",
+                      "margin-mobile": "16px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Manrope"
+                      ],
+                      "body-lg": [
+                              "Manrope"
+                      ],
+                      "title-md": [
+                              "Manrope"
+                      ],
+                      "headline-lg": [
+                              "Manrope"
+                      ],
+                      "label-sm": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-lg-mobile": [
+                              "Manrope"
+                      ],
+                      "label-xs": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-xl": [
+                              "Manrope"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "title-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-xs": [
+                              "10px",
+                              {
+                                      "lineHeight": "14px",
+                                      "letterSpacing": "0.1em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-xl": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid theme('colors.surface-variant');
+        }
+        .light-weave-bg {
+            background-color: #FAF8F2;
+            background-image: 
+                linear-gradient(to right, rgba(116, 119, 127, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(116, 119, 127, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .glow-layer {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(176, 221, 255, 0.15) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            top: -100px;
+            right: -100px;
+        }
+    </style>
+</head>
+<body class="light-weave-bg text-on-surface h-full overflow-hidden flex font-body-md relative">
+<div class="glow-layer"></div>
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col bg-surface-container-lowest border-r border-outline-variant/20 shadow-md fixed left-0 top-0 h-full w-64 pt-24 py-6 z-40">
+<div class="px-6 mb-8">
+<h1 class="font-title-md text-title-md font-semibold text-primary">Facility Alpha</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-1">All Systems Normal</p>
+</div>
+<div class="flex-1 overflow-y-auto px-4 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+                Live Monitoring
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-r-full hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="sensors">sensors</span>
+                Sensor Data
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="local_fire_department">local_fire_department</span>
+                Fire Events
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+                Device Management
+            </a>
+</div>
+<div class="px-4 mt-auto space-y-2">
+<button class="w-full py-2 px-4 bg-error/10 text-error font-label-sm text-label-sm rounded border border-error/20 hover:bg-error/20 transition-colors">Emergency Shutdown</button>
+<div class="pt-4 border-t border-outline-variant/20 mt-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+                    Support
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-r-full font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                    Log Out
+                </a>
+</div>
+</div>
+</nav>
+<!-- TopNavBar (Mobile only for layout consistency in this focused view, or desktop if needed. Adjusting for generic platform rules) -->
+<header class="md:ml-64 bg-surface/70 backdrop-blur-xl fixed top-0 w-full z-50 border-b border-outline-variant/30 shadow-sm flex justify-between items-center px-margin-desktop h-20">
+<div class="flex items-center gap-4">
+<div class="font-headline-lg text-headline-lg font-bold text-primary">Aegis Fire Systems</div>
+</div>
+<div class="flex items-center gap-6 text-primary">
+<button class="hover:text-primary transition-colors duration-200 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="hover:text-primary transition-colors duration-200 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="hover:text-primary transition-colors duration-200 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<img alt="Safety Officer Profile" class="w-10 h-10 rounded-full border border-outline-variant object-cover" data-alt="A small, professional circular profile picture of a safety officer in a high-tech control room setting. Soft, cool lighting emphasizes a clean, modern aesthetic with sharp details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQdP-I2QfZJqjsMtt6rjDxVzH12UP5bhXI4bn9vWar8Wiswyf24nveOCOsgrdd4qP6h6imV3iGoCoxTcVyK0AnK_lV5lfHWfXGZIloZcKu0KqplYfev6vXMIph0HRCB7_Y0thswn7v31IkqW-Y5a3cZxhpGxD6wVggkE7CqxdLP06Glc_VSMDSuAtTJlp39A9u3cc299UICa1K4dewLejRJvZtbc6Vyl3wdueXcJRMFqJ9MNTRTb4t"/>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 md:ml-64 pt-28 px-margin-mobile md:px-margin-desktop pb-12 overflow-y-auto relative z-10">
+<div class="max-w-[800px] mx-auto">
+<div class="mb-8">
+<h2 class="font-headline-xl text-headline-xl text-primary">Sensor Calibration &amp; Reporting</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-2">Log manual adjustments and update baseline operational data for GuardianMesh environmental sensors.</p>
+</div>
+<form class="glass-panel rounded-xl p-8 shadow-[0_8px_32px_rgba(0,18,43,0.08)] space-y-8">
+<!-- Section: Identity -->
+<div class="space-y-6">
+<h3 class="font-title-md text-title-md text-primary border-b border-outline-variant/30 pb-2">Equipment Identification</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="sensorId">Sensor ID Designation</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 pl-4 pr-10 appearance-none transition-colors" id="sensorId" name="sensorId">
+<option disabled="" selected="" value="">Select a sensor...</option>
+<option value="SN-T-0492">SN-T-0492 (Zone A - Temp)</option>
+<option value="SN-S-1104">SN-S-1104 (Zone B - Smoke)</option>
+<option value="SN-F-0881">SN-F-0881 (Zone C - Flame)</option>
+<option value="SN-M-9920">SN-M-9920 (Main Hub - Multi)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 text-on-surface-variant pointer-events-none" data-icon="arrow_drop_down">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="operatorName">Operator ID / Name</label>
+<input class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 px-4 transition-colors" id="operatorName" name="operatorName" placeholder="e.g. J. Doe - Tech Lead" type="text"/>
+</div>
+</div>
+</div>
+<!-- Section: Calibration Data -->
+<div class="space-y-6">
+<h3 class="font-title-md text-title-md text-primary border-b border-outline-variant/30 pb-2">Calibration Parameters</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="calTemp">Temperature Baseline (°C)</label>
+<input class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 px-4 transition-colors text-right" id="calTemp" name="calTemp" placeholder="22.5" step="0.1" type="number"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="calSmoke">Particulate Baseline (μg/m³)</label>
+<input class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 px-4 transition-colors text-right" id="calSmoke" name="calSmoke" placeholder="12" step="1" type="number"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="calDate">Calibration Date</label>
+<input class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 px-4 transition-colors" id="calDate" name="calDate" type="date"/>
+</div>
+</div>
+</div>
+<!-- Section: Notes -->
+<div class="space-y-6">
+<h3 class="font-title-md text-title-md text-primary border-b border-outline-variant/30 pb-2">Maintenance Log</h3>
+<div class="flex flex-col gap-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase" for="maintenanceNotes">Service Notes &amp; Observations</label>
+<textarea class="w-full bg-surface-container-low border-0 border-b-2 border-outline-variant focus:border-secondary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface py-3 px-4 transition-colors resize-none" id="maintenanceNotes" name="maintenanceNotes" placeholder="Detail any environmental anomalies, physical damage, or deviations observed during calibration..." rows="4"></textarea>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex items-center justify-end gap-4 pt-6 border-t border-outline-variant/20">
+<button class="px-6 py-3 font-label-sm text-label-sm font-semibold text-secondary border border-secondary rounded hover:bg-secondary/10 transition-colors uppercase" type="button">Cancel</button>
+<button class="px-6 py-3 font-label-sm text-label-sm font-semibold text-on-primary bg-primary rounded shadow-sm hover:bg-primary/90 hover:shadow-md transition-all uppercase flex items-center gap-2" type="submit">
+<span class="material-symbols-outlined text-[18px]" data-icon="save">save</span>
+                        Commit Baseline Log
+                    </button>
+</div>
+</form>
+</div>
+</main>
+</body></html>
